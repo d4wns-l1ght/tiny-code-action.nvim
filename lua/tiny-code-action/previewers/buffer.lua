@@ -19,7 +19,7 @@ function M.term_previewer(bufnr, ctx)
   local client = ctx.item.client
   local preview_content = M.preview_with_resolve(action, bufnr, client)
 
-  if not preview_content or vim.tbl_isempty(preview_content) or action.is_group then
+  if not preview_content or vim.tbl_isempty(preview_content) then
     preview_content = { "No preview available for this action" }
   end
 
@@ -35,6 +35,22 @@ function M.term_previewer(bufnr, ctx)
       utils.set_buf_option(ctx.buf, "filetype", "diff")
       utils.set_buf_option(ctx.buf, "modifiable", false)
     end)
+  elseif ctx.item.is_group then
+    preview_content = {}
+    -- populate preview content with children titles instead of actual preview
+    table.insert(preview_content, "## " .. action.title)
+    for _, child in pairs(ctx.item.children) do
+      table.insert(preview_content, "  " .. child.action.title)
+    end
+    safe_buf_op(function()
+      utils.set_buf_option(ctx.buf, "modifiable", true)
+      vim.api.nvim_buf_set_lines(ctx.buf, 0, -1, false, preview_content)
+      utils.set_buf_option(ctx.buf, "filetype", "markdown")
+      -- execute FileType autocmd instead of using terminal.colorize
+      -- because we want treesitter to highlight the markdown
+      vim.api.nvim_exec_autocmds("FileType", { buffer = ctx.buf })
+      utils.set_buf_option(ctx.buf, "modifiable", false)
+    end)
   else
     -- Show as plain text
     safe_buf_op(function()
@@ -45,6 +61,7 @@ function M.term_previewer(bufnr, ctx)
       utils.set_buf_option(ctx.buf, "modifiable", false)
     end)
   end
+
   return true
 end
 
